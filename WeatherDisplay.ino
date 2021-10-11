@@ -39,11 +39,12 @@ int moduloWindDir(int intBearing) {
 
 void callback(char* topic, byte* payload, unsigned int length) {
   String tmpTopic = topic;
-  char tmpStr[length];
+  char tmpStr[length+1];
   for (int x=0; x<length; x++) {
     tmpStr[x] = (char)payload[x]; // payload is a stream, so we need to chop it by length.
   }
-
+  tmpStr[length] = 0x00;
+  
   if (tmpTopic == "weather/winddir") {int intWindDir = atoi(tmpStr); WindDir.setValue(moduloWindDir(intWindDir + 90)); }
   else if (tmpTopic == "weather/windspeedmph") { WindSpeed.setText(tmpStr); }
   else if (tmpTopic == "weather/humidity") { Humidity.setText(tmpStr); }
