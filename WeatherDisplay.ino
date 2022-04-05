@@ -1,16 +1,8 @@
+#include <RHReliableDatagram.h>
+#include <RH_RF69.h>
 #include <SPI.h>
-#include <WiFi101.h>
-#include <PubSubClient.h>
-#include "arduino_secrets.h"
 #include "Nextion.h"
 
-// Update these with values suitable for your hardware/network.
-byte mac[]    = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0xEE };
-IPAddress server(192, 168, 1, 171);
-
-// WiFi card example
-char ssid[] = WSSID;    // your SSID
-char pass[] = WPSWD;       // your SSID Password
 
 int gblWindDir = 0;
 float gblWindSpeed = 0.00;
@@ -21,6 +13,18 @@ float gblDRainIn = 0.00;
 float gblBattLvl = 0.00;
 float gblLightLvl = 0.00;
 
+#define CLIENT_ADDRESS 1
+#define SERVER_ADDRESS 2
+
+// Singleton instance of the radio driver
+RH_RF69 driver(23, 18);
+//RH_RF69 driver(15, 16); // For RF69 on PJRC breakout board with Teensy 3.1
+//RH_RF69 rf69(4, 2); // For MoteinoMEGA https://lowpowerlab.com/shop/moteinomega
+//RH_RF69 driver(8, 7); // Adafruit Feather 32u4
+
+// Class to manage message delivery and receipt, using the driver declared above
+RHReliableDatagram manager(driver, SERVER_ADDRESS);
+
 
 NexGauge WindDir  = NexGauge(0, 15, "z0");
 NexText WindSpeed = NexText(0, 20, "t16");
@@ -30,39 +34,26 @@ NexText RainIn = NexText(0, 18, "t9");
 NexText DRainIn = NexText(0, 19, "t12");
 NexText BattLvl = NexText(0, 22, "t20");
 NexText LightLvl = NexText(0, 21, "t19");
-
+NexWaveform WindSpeedGraph = NexWaveform(0, 23, "s0");
 
 int moduloWindDir(int intBearing) {
   if (intBearing > 359) { return(intBearing - 360); }
   else {return(intBearing);}
 }
 
-void callback(char* topic, byte* payload, unsigned int length) {
-  String tmpTopic = topic;
-  char tmpStr[length+1];
-  for (int x=0; x<length; x++) {
-    tmpStr[x] = (char)payload[x]; // payload is a stream, so we need to chop it by length.
-  }
-  tmpStr[length] = 0x00; // terminate the char string with a null
-  
-  if (tmpTopic == "weather/winddir") {int intWindDir = atoi(tmpStr); gblWindDir = (moduloWindDir(intWindDir + 90)); }
-  else if (tmpTopic == "weather/windspeedmph") { gblWindSpeed = atof(tmpStr); }
-  else if (tmpTopic == "weather/humidity") { gblHumidity = atof(tmpStr); }
-  else if (tmpTopic == "weather/tempf") { gblTempF = atof(tmpStr); }
-  else if (tmpTopic == "weather/rainin") { gblRainIn = atof(tmpStr); }
-  else if (tmpTopic == "weather/dailyrainin") { gblDRainIn = atof(tmpStr); }
-  else if (tmpTopic == "weather/batt_lvl") { gblBattLvl = atof(tmpStr); }
-  //else if (tmpTopic == "weather/altitude") { gblAltitude = atoi(tmpStr); }
-  else if (tmpTopic == "weather/light_lvl") { gblLightLvl = atof(tmpStr); }
-  /*else if (tmpTopic == "weather/lat") { gblGpsLat = tmpStr; }
-  else if (tmpTopic == "weather/lng") { gblGpsLong = tmpStr; }
-  else if (tmpTopic == "weather/sats") { gblGpsSats = tmpStr; }
-  else if (tmpTopic == "weather/date") { gblGpsDate = tmpStr; }
-  else if (tmpTopic == "weather/time") { gblGpsTime = tmpStr; }
+void callback(char* payload) {
+  String tmpBuff = (char*) payload;
+  String tmpTopic = tmpBuff.substring(0,1);
+  String tmpStr = tmpBuff.substring(1);
 
-  else if (tmpTopic == "generator/Status/Engine/Engine_State") { gblGenEngState = tmpStr; }
-  else if (tmpTopic == "generator/Status/Engine/Switch_State") { gblGenEngSwitch = tmpStr; }
-  else if (tmpTopic == "generator/Status/Engine/Battery_Voltage") { gblGenEngBatt = tmpStr; } */
+  if (tmpTopic == "0") {int intWindDir = atoi(tmpStr); gblWindDir = (moduloWindDir(intWindDir + 90)); }
+  else if (tmpTopic == "1") { gblWindSpeed = atof(tmpStr); }
+  else if (tmpTopic == "2") { gblHumidity = atof(tmpStr); }
+  else if (tmpTopic == "3") { gblTempF = atof(tmpStr); }
+  else if (tmpTopic == "4") { gblRainIn = atof(tmpStr); }
+  else if (tmpTopic == "5") { gblDRainIn = atof(tmpStr); }
+  else if (tmpTopic == "6") { gblBattLvl = atof(tmpStr); }
+
 
 }
 
@@ -70,87 +61,55 @@ void updateDisp() {
   char buffer[10];
   memset(buffer, 0, sizeof(buffer));
 
-  
+
   WindDir.setValue(gblWindDir);
 
   dtostrf(gblWindSpeed,5, 2, buffer);
   WindSpeed.setText(buffer);
-  
+  WindSpeedGraph.addValue(0, gblWindSpeed);
+
   dtostrf(gblHumidity,5, 2, buffer);
   Humidity.setText(buffer);
-  
+  WindSpeedGraph.addValue(1, gblHumidity);
+
   dtostrf(gblTempF,5, 2, buffer);
   TempF.setText(buffer);
-  
+  WindSpeedGraph.addValue(2, gblTempF);
+
   dtostrf(gblRainIn,5, 2, buffer);
   RainIn.setText(buffer);
-  
+  WindSpeedGraph.addValue(3, gblRainIn);
+
   dtostrf(gblDRainIn,5, 2, buffer);
   DRainIn.setText(buffer);
-  
+
   dtostrf(gblBattLvl,5, 2, buffer);
   BattLvl.setText(buffer);
-  
+
   dtostrf(gblLightLvl,5, 2, buffer);
   LightLvl.setText(buffer);
 
 }
 
-WiFiClient wClient;
-PubSubClient client(wClient);
-
-long lastReconnectAttempt = 0;
 unsigned long lastDisplay = 0UL;
 
-
-boolean reconnect() {
-  if (client.connect("arduinoClient2")) {
-    client.subscribe("weather/winddir");
-    client.subscribe("weather/windspeedmph");
-    client.subscribe("weather/humidity");
-    client.subscribe("weather/tempf");
-    client.subscribe("weather/rainin");
-    client.subscribe("weather/dailyrainin");
-    client.subscribe("weather/batt_lvl");
-    client.subscribe("weather/altitude");
-    client.subscribe("weather/light_lvl");
-    client.subscribe("weather/lat");
-    client.subscribe("weather/lng");
-    client.subscribe("weather/sats");
-    client.subscribe("weather/date");
-    client.subscribe("weather/time");
-
-    client.subscribe("generator/Status/Engine/Engine_State");
-    client.subscribe("generator/Status/Engine/Switch_State");
-    client.subscribe("generator/Status/Engine/Battery_Voltage");
-
-
-  }
-  return client.connected();
-}
 
 void setup()
 {
   Serial.begin (9600);
 
-  client.setServer(server, 1883);
-  client.setCallback(callback);
+
 
   nexInit();
 
-  //WiFi.setPins(53,48,49);
-  int status = WiFi.begin(ssid, pass);
-  if ( status != WL_CONNECTED) {
-    Serial.println("Couldn't get a wifi connection");
-    while(true);
-  }
-  // print out info about the connection:
-  else {
-    Serial.println("Connected to network");
-    IPAddress ip = WiFi.localIP();
-    Serial.print("My IP address is: ");
-    Serial.println(ip);
-  }
+  if (!manager.init())
+    Serial.println("init failed");
+  // Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM (for low power module)
+
+  // If you are using a high power RF69 eg RFM69HW, you *must* set a Tx power with the
+  // ishighpowermodule flag set like this:
+  driver.setTxPower(14, true);
+
   delay(1500);
   lastReconnectAttempt = 0;
 
@@ -158,21 +117,26 @@ void setup()
 
 }
 
+uint8_t data[] = "ok";
+// Dont put this on the stack:
+uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
+
 void loop()
 {
-  if (!client.connected()) {
-    long now = millis();
-    if (now - lastReconnectAttempt > 5000) {
-      lastReconnectAttempt = now;
-      // Attempt to reconnect
-      if (reconnect()) {
-        lastReconnectAttempt = 0;
-      }
-    }
-  } else {
-    // Client connected
+  if (manager.available())
+  {
+    // Wait for a message addressed to us from the client
+    uint8_t len = sizeof(buf);
+    uint8_t from;
+    if (manager.recvfromAck(buf, &len, &from))
+    {
+      callback((char*)buf);
 
-    client.loop();
+
+      // Send a reply back to the originator client
+      if (!manager.sendtoWait(data, sizeof(data), from))
+        Serial.println("sendtoWait failed");
+    }
   }
   if (millis() - lastDisplay > 500) {
     lastDisplay = millis();
