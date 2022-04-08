@@ -46,13 +46,13 @@ void callback(char* payload) {
   String tmpTopic = tmpBuff.substring(0,1);
   String tmpStr = tmpBuff.substring(1);
 
-  if (tmpTopic == "0") {int intWindDir = atoi(tmpStr); gblWindDir = (moduloWindDir(intWindDir + 90)); }
-  else if (tmpTopic == "1") { gblWindSpeed = atof(tmpStr); }
-  else if (tmpTopic == "2") { gblHumidity = atof(tmpStr); }
-  else if (tmpTopic == "3") { gblTempF = atof(tmpStr); }
-  else if (tmpTopic == "4") { gblRainIn = atof(tmpStr); }
-  else if (tmpTopic == "5") { gblDRainIn = atof(tmpStr); }
-  else if (tmpTopic == "6") { gblBattLvl = atof(tmpStr); }
+  if (tmpTopic == "0") {int intWindDir = tmpStr.toInt(); gblWindDir = (moduloWindDir(intWindDir + 90)); }
+  else if (tmpTopic == "1") { gblWindSpeed = tmpStr.toFloat(); }
+  else if (tmpTopic == "2") { gblHumidity = tmpStr.toFloat(); }
+  else if (tmpTopic == "3") { gblTempF = tmpStr.toFloat(); }
+  else if (tmpTopic == "4") { gblRainIn = tmpStr.toFloat(); }
+  else if (tmpTopic == "5") { gblDRainIn = tmpStr.toFloat(); }
+  else if (tmpTopic == "6") { gblBattLvl = tmpStr.toFloat(); }
 
 
 }
@@ -111,7 +111,7 @@ void setup()
   driver.setTxPower(14, true);
 
   delay(1500);
-  lastReconnectAttempt = 0;
+
 
   Serial.println("Weather Display online!");
 
